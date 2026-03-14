@@ -1,0 +1,5 @@
+{
+  "name": "Mosque Projects Tracker",
+  "description": "Appli cation to track and display donation projects for a mosque association, including a public view, TV mode, and admin dashboard.",
+  "requestFramePermissions": []
+}
