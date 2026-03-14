@@ -1,25 +1,31 @@
+import * as dotenv from 'dotenv';
+
+// Charger les variables d'environnement AVANT d'importer db/routes
+dotenv.config({ path: '.env.local' });
+dotenv.config();
+
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { initDb } from './src/server/db.js';
-import apiRoutes from './src/server/routes/api.js';
-import adminRoutes from './src/server/routes/admin.js';
-import authRoutes from './src/server/routes/auth.js';
 
-const PORT = 3005;
+const PORT = Number(process.env.PORT) || 3005;
 
 async function startServer() {
+  // Imports dynamiques après chargement des variables d'env
+  const { initDb } = await import('./src/server/db.js');
+  const { default: apiRoutes } = await import('./src/server/routes/api.js');
+  const { default: adminRoutes } = await import('./src/server/routes/admin.js');
+  const { default: authRoutes } = await import('./src/server/routes/auth.js');
+
   const app = express();
 
-  // Ensure uploads directory exists
   const uploadsDir = path.join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
-  // Initialize database
   initDb();
 
   app.use(cors());
@@ -27,12 +33,10 @@ async function startServer() {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.use('/uploads', express.static(uploadsDir));
 
-  // API routes
   app.use('/api/auth', authRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api', apiRoutes);
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -46,14 +50,15 @@ async function startServer() {
     });
   }
 
-  // Global error handler to ensure JSON responses for API errors
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error('Server error:', err);
+
     if (req.path.startsWith('/api/')) {
       res.status(500).json({ error: 'Internal server error' });
-    } else {
-      next(err);
+      return;
     }
+
+    next(err);
   });
 
   app.listen(PORT, '0.0.0.0', () => {
@@ -61,4 +66,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});
